@@ -156,7 +156,10 @@ main[b-0xxnayxri4] {
     
     .nav-scrollable[b-srto4shd9d] {
         /* Allow sidebar to scroll for tall menus */
-        height: calc(100vh - 3.5rem);
-        overflow-y: auto;
+        display: flex;
+        flex-direction: row;
+        align-items: flex-start;
+        gap: 1rem;
+        /*overflow-y: auto; */
     }
 }

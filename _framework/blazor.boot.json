@@ -1,7 +1,7 @@
 {
   "mainAssemblyName": "BlazorAsmEpg",
   "resources": {
-    "hash": "sha256-wMUfYh7jwuXc22V0hwsZrTtMV2PsSrXAIDlMwoW1/H4=",
+    "hash": "sha256-B9i3XqJdKgPwQ0lvr9L9+seQjfBjiyWF4uqu/8hOYBQ=",
     "jsModuleNative": {
       "dotnet.native.js": "sha256-1QpKPnxEuRCElzcp+e3MrovJeAJkuzqKmRQay/6Aa08="
     },
@@ -55,7 +55,7 @@
       "System.Xml.Linq.wasm": "sha256-y2cfBTidppr9M5NIpxOKf0HPKCnyltF4QB5RMpRB0vE=",
       "System.Xml.XDocument.wasm": "sha256-++Q5Psk3liiV3UX8BsFhlavaXG58mZ/q5xEscKO+W6g=",
       "System.Private.CoreLib.wasm": "sha256-l4U2Y4E1Czv9ql721Q9DGVSNHWWSB8VVj+NmXoX04lo=",
-      "BlazorAsmEpg.wasm": "sha256-xQdHlLbLCRQ+0UK07N69muKiieIPbCBfF82Dx0G4Njg="
+      "BlazorAsmEpg.wasm": "sha256-j2c/vNktJZbEvU0NK2rAPqy56w4pV6aJEhGvlo3nvy4="
     }
   },
   "cacheBootResources": true,
