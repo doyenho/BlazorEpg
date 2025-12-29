@@ -1,0 +1,50 @@
+:root{
+  --gap: 12px;
+  --cell-size: 56px;
+  --accent: #2c7a7b;
+  --green: #2ecc71;
+}
+
+*{box-sizing:border-box;font-family:system-ui,-apple-system,Segoe UI,Roboto,"Noto Sans TC",sans-serif}
+body{margin:0;background:#f7fafc;color:#111;padding:24px}
+.container{max-width:880px;margin:0 auto}
+h1{margin:0 0 12px 0}
+
+.setup{display:flex;gap:12px;align-items:center;margin-bottom:16px;flex-wrap:wrap}
+.setup input[type="number"]{width:86px;padding:6px;border-radius:6px;border:1px solid #cbd5e0}
+button{background:var(--accent);color:#fff;border:none;padding:8px 12px;border-radius:6px;cursor:pointer}
+button[disabled]{opacity:.5;cursor:not-allowed}
+.board-section{margin-bottom:16px;overflow:auto;padding:8px;background:#fff;border-radius:8px;border:1px solid #e2e8f0}
+
+/* 表格樣式 */
+table.bingo{border-collapse:collapse;margin:8px auto}
+table.bingo td{padding:0}
+.cell-input{
+  width:var(--cell-size);height:var(--cell-size);
+  padding:6px;border:1px solid #cbd5e0;text-align:center;
+  font-size:16px;border-radius:4px;background:#fff;
+  transition:background .18s,color .18s,transform .08s;
+}
+.cell-input:focus{outline:2px solid #90cdf4;transform:scale(1.02)}
+.cell-input.locked{
+  background:transparent;
+  border:1px solid transparent;
+  cursor:default;
+  font-weight:600;
+}
+
+/* 被標記中獎格子 */
+.cell-input.marked{
+  background:var(--green) !important;
+  color:#fff !important;
+  border-color:rgba(0,0,0,0.06)!important;
+}
+
+/* 小回饋與說明 */
+.play{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.play input[type="text"]{padding:8px;border-radius:6px;border:1px solid #cbd5e0}
+.feedback{margin-top:8px;color:#2d3748}
+.notes p{font-size:13px;color:#4a5568;margin-top:16px}
+@media (max-width:600px){
+  :root{--cell-size:44px}
+}

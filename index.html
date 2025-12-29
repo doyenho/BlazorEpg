@@ -1,32 +1,40 @@
-<!DOCTYPE html>
-<html lang="en">
-
+<!doctype html>
+<html lang="zh-Hant">
 <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>BlazorAsmEpg</title>
-    <base href="/BlazorEpg/" />
-    <link rel="stylesheet" href="css/bootstrap/bootstrap.min.css" />
-    <link rel="stylesheet" href="css/app.css" />
-    <link rel="icon" type="image/png" href="favicon.png" />
-    <link href="BlazorAsmEpg.styles.css" rel="stylesheet" />
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>數字 Bingo</title>
+  <link rel="stylesheet" href="style.css" />
 </head>
-
 <body>
-    <div id="app">
-        <svg class="loading-progress">
-            <circle r="40%" cx="50%" cy="50%" />
-            <circle r="40%" cx="50%" cy="50%" />
-        </svg>
-        <div class="loading-progress-text"></div>
-    </div>
+  <main class="container">
+    <h1>數字 Bingo</h1>
 
-    <div id="blazor-error-ui">
-        An unhandled error has occurred.
-        <a href="" class="reload">Reload</a>
-        <a class="dismiss">🗙</a>
-    </div>
-    <script src="_framework/blazor.webassembly.js"></script>
+    <section class="setup">
+      <label>
+        大小 n × n：
+        <input id="sizeInput" type="number" min="1" max="20" value="5" />
+      </label>
+      <button id="createBtn">建立盤面</button>
+      <button id="lockBtn" disabled>鎖定為唯讀</button>
+      <button id="resetBtn" disabled>重設盤面</button>
+    </section>
+
+    <section id="boardSection" class="board-section" aria-live="polite"></section>
+
+    <section class="play">
+      <label for="guessInput">輸入數字：</label>
+      <input id="guessInput" type="text" inputmode="numeric" placeholder="輸入數字後按 Enter 或點擊檢查" />
+      <button id="checkBtn" disabled>檢查</button>
+      <button id="clearMarksBtn" disabled>清除標記</button>
+      <div id="feedback" class="feedback" aria-live="polite"></div>
+    </section>
+
+    <footer class="notes">
+      <p>流程：建立盤面 → 在每個格子輸入數字 → 點「鎖定為唯讀」 → 在下方輸入要找的數字（可重複）</p>
+    </footer>
+  </main>
+
+  <script src="script.js"></script>
 </body>
-
 </html>
