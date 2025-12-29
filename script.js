@@ -1,4 +1,5 @@
 // 簡單的數字 Bingo 實作（含「本次命中紅邊」、Undo，以及行/列/斜線完成檢查與綠框標示）
+// 已加入：清除標記前的確認；修正完成線計算/去重與確保每次變動後更新達成行數
 const sizeInput = document.getElementById('sizeInput');
 const createBtn = document.getElementById('createBtn');
 const lockBtn = document.getElementById('lockBtn');
@@ -94,13 +95,22 @@ clearMarksBtn.addEventListener('click', () => {
     feedback.textContent = '目前沒有任何標記。';
     return;
   }
-  // 儲存歷史以便 Undo
+  // 要求確認
+  if (!confirm('是否確認要清除所有標記？')) {
+    feedback.textContent = '已取消清除標記。';
+    return;
+  }
+
+  // 儲存歷史（清除前的狀態）以便 Undo
   historyStack.push(getMarkedKeys());
   undoBtn.disabled = false;
 
   currentlyMarked.forEach(el => el.classList.remove('marked','current','bingo-line'));
+  // 更新完成行數（會回傳 0）
+  const completedAfter = updateBingoLines();
+  updateLinesInfo(completedAfter);
+
   feedback.textContent = '已清除所有標記。';
-  updateLinesInfo(0);
 });
 
 undoBtn.addEventListener('click', () => {
@@ -142,6 +152,7 @@ function applyMarkedKeys(keys, setCurrent = false) {
   // 更新完成的行/列/斜線標示與計數
   const completedCount = updateBingoLines();
   updateLinesInfo(completedCount);
+  return completedCount;
 }
 
 /** 檢查猜的數字，找出盤面內相符的格子並標記 */
@@ -193,7 +204,9 @@ function checkGuess() {
   feedback.textContent = `找到 ${matchedKeys.length} 個符合的格子，已標記為綠底白字（本次命中以紅邊顯示）。`;
 }
 
-/** 更新畫面上達成的行/列/斜線：回傳完成數量，並為那些格子加上 .bingo-line */
+/** 更新畫面上達成的行/列/斜線：回傳完成數量，並為那些格子加上 .bingo-line
+ *  修正重複計算問題，使用集合去重，且在每次呼叫時會先移除舊的 .bingo-line
+ */
 function updateBingoLines() {
   // 移除舊的 bingo-line 樣式
   const allInputs = boardSection.querySelectorAll('input.cell-input');
@@ -203,7 +216,7 @@ function updateBingoLines() {
 
   const markedSet = new Set(getMarkedKeys());
   const n = currentSize;
-  const completed = [];
+  const completedSet = new Set(); // 用於去重，存 row-idx / col-idx / diag-main / diag-anti
 
   // rows
   for (let r = 0; r < n; r++) {
@@ -211,7 +224,7 @@ function updateBingoLines() {
     for (let c = 0; c < n; c++) {
       if (!markedSet.has(`${r}-${c}`)) { ok = false; break; }
     }
-    if (ok) completed.push({type: 'row', idx: r});
+    if (ok) completedSet.add(`row-${r}`);
   }
 
   // cols
@@ -220,7 +233,7 @@ function updateBingoLines() {
     for (let r = 0; r < n; r++) {
       if (!markedSet.has(`${r}-${c}`)) { ok = false; break; }
     }
-    if (ok) completed.push({type: 'col', idx: c});
+    if (ok) completedSet.add(`col-${c}`);
   }
 
   // main diagonal (r == c)
@@ -228,7 +241,7 @@ function updateBingoLines() {
   for (let i = 0; i < n; i++) {
     if (!markedSet.has(`${i}-${i}`)) { okMain = false; break; }
   }
-  if (okMain) completed.push({type: 'diag', which: 'main'});
+  if (okMain) completedSet.add('diag-main');
 
   // anti diagonal (r + c == n - 1)
   let okAnti = true;
@@ -236,37 +249,37 @@ function updateBingoLines() {
     const r = i, c = n - 1 - i;
     if (!markedSet.has(`${r}-${c}`)) { okAnti = false; break; }
   }
-  if (okAnti) completed.push({type: 'diag', which: 'anti'});
+  if (okAnti) completedSet.add('diag-anti');
 
   // 為完成的每條線把成員格子加上 bingo-line
-  completed.forEach(line => {
-    if (line.type === 'row') {
+  completedSet.forEach(key => {
+    if (key.startsWith('row-')) {
+      const idx = parseInt(key.split('-')[1], 10);
       for (let c = 0; c < n; c++) {
-        const el = boardSection.querySelector(`input.cell-input[data-row="${line.idx}"][data-col="${c}"]`);
+        const el = boardSection.querySelector(`input.cell-input[data-row="${idx}"][data-col="${c}"]`);
         if (el) el.classList.add('bingo-line');
       }
-    } else if (line.type === 'col') {
+    } else if (key.startsWith('col-')) {
+      const idx = parseInt(key.split('-')[1], 10);
       for (let r = 0; r < n; r++) {
-        const el = boardSection.querySelector(`input.cell-input[data-row="${r}"][data-col="${line.idx}"]`);
+        const el = boardSection.querySelector(`input.cell-input[data-row="${r}"][data-col="${idx}"]`);
         if (el) el.classList.add('bingo-line');
       }
-    } else if (line.type === 'diag') {
-      if (line.which === 'main') {
-        for (let i = 0; i < n; i++) {
-          const el = boardSection.querySelector(`input.cell-input[data-row="${i}"][data-col="${i}"]`);
-          if (el) el.classList.add('bingo-line');
-        }
-      } else {
-        for (let i = 0; i < n; i++) {
-          const r = i, c = n - 1 - i;
-          const el = boardSection.querySelector(`input.cell-input[data-row="${r}"][data-col="${c}"]`);
-          if (el) el.classList.add('bingo-line');
-        }
+    } else if (key === 'diag-main') {
+      for (let i = 0; i < n; i++) {
+        const el = boardSection.querySelector(`input.cell-input[data-row="${i}"][data-col="${i}"]`);
+        if (el) el.classList.add('bingo-line');
+      }
+    } else if (key === 'diag-anti') {
+      for (let i = 0; i < n; i++) {
+        const r = i, c = n - 1 - i;
+        const el = boardSection.querySelector(`input.cell-input[data-row="${r}"][data-col="${c}"]`);
+        if (el) el.classList.add('bingo-line');
       }
     }
   });
 
-  return completed.length;
+  return completedSet.size;
 }
 
 /** 更新下方顯示的已達成行數 */
