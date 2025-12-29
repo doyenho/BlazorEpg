@@ -3,6 +3,7 @@
   --cell-size: 56px;
   --accent: #2c7a7b;
   --green: #2ecc71;
+  --red: #e53e3e;
 }
 
 *{box-sizing:border-box;font-family:system-ui,-apple-system,Segoe UI,Roboto,"Noto Sans TC",sans-serif}
@@ -23,7 +24,8 @@ table.bingo td{padding:0}
   width:var(--cell-size);height:var(--cell-size);
   padding:6px;border:1px solid #cbd5e0;text-align:center;
   font-size:16px;border-radius:4px;background:#fff;
-  transition:background .18s,color .18s,transform .08s;
+  transition:background .18s,color .18s,transform .08s,border .12s;
+  box-sizing:border-box;
 }
 .cell-input:focus{outline:2px solid #90cdf4;transform:scale(1.02)}
 .cell-input.locked{
@@ -33,11 +35,18 @@ table.bingo td{padding:0}
   font-weight:600;
 }
 
-/* 被標記中獎格子 */
+/* 被標記中獎格子：綠底白字 */
 .cell-input.marked{
   background:var(--green) !important;
   color:#fff !important;
   border-color:rgba(0,0,0,0.06)!important;
+}
+
+/* 本次命中（目前最新一次的命中）會加上紅邊框 */
+.cell-input.marked.current{
+  border: 2px solid var(--red) !important;
+  /* 讓紅邊不會改變格子大小 */
+  box-sizing:border-box;
 }
 
 /* 小回饋與說明 */
