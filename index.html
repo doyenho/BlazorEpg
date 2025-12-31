@@ -3,12 +3,12 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>數字 Bingo</title>
+  <title>數字 Bingo（含拍照 OCR）</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <main class="container">
-    <h1>數字 Bingo</h1>
+    <h1>數字 Bingo（含拍照 OCR）</h1>
 
     <section class="setup">
       <label>
@@ -18,6 +18,11 @@
       <button id="createBtn">建立盤面</button>
       <button id="lockBtn" disabled>鎖定為唯讀</button>
       <button id="resetBtn" disabled>重設盤面</button>
+      <!-- 新增拍照/上傳按鈕（mobile 會開啟相機） -->
+      <label class="upload-btn">
+        <input id="imageInput" type="file" accept="image/*" capture="environment" style="display:none" />
+        <span class="btn-like">拍照 / 上傳圖片</span>
+      </label>
     </section>
 
     <section id="boardSection" class="board-section" aria-live="polite"></section>
@@ -29,12 +34,19 @@
       <button id="clearMarksBtn" disabled>清除標記</button>
       <button id="undoBtn" disabled>Undo</button>
       <div id="feedback" class="feedback" aria-live="polite"></div>
+      <div id="linesCount" class="lines-count" aria-live="polite">已達成行數：0</div>
     </section>
 
     <footer class="notes">
-      <p>流程：建立盤面 → 在每個格子輸入欲放的數字 → 點「鎖定為唯讀」 → 在下方輸入要找的數字（可重複）。若誤操作可按 Undo 回到上一步狀態。</p>
+      <p>流程：建立盤面 → 在每個格子輸入欲放的數字（或直接拍照上傳自動填入）→ 點「鎖定為唯讀」 → 在下方輸入要檢查的數字（可重複）。</p>
     </footer>
   </main>
+
+  <!-- 隱藏的 canvas 與暫存影像（處理用） -->
+  <canvas id="procCanvas" style="display:none"></canvas>
+
+  <!-- Tesseract.js CDN (使用 createWorker API) -->
+  <script src="https://unpkg.com/tesseract.js@2.1.5/dist/tesseract.min.js"></script>
 
   <script src="script.js"></script>
 </body>

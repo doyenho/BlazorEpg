@@ -13,8 +13,9 @@ h1{margin:0 0 12px 0}
 
 .setup{display:flex;gap:12px;align-items:center;margin-bottom:16px;flex-wrap:wrap}
 .setup input[type="number"]{width:86px;padding:6px;border-radius:6px;border:1px solid #cbd5e0}
-button{background:var(--accent);color:#fff;border:none;padding:8px 12px;border-radius:6px;cursor:pointer}
+button, .btn-like{background:var(--accent);color:#fff;border:none;padding:8px 12px;border-radius:6px;cursor:pointer;display:inline-block}
 button[disabled]{opacity:.5;cursor:not-allowed}
+.upload-btn input{display:none}
 .board-section{margin-bottom:16px;overflow:auto;padding:8px;background:#fff;border-radius:8px;border:1px solid #e2e8f0}
 
 /* 表格樣式 */
@@ -24,7 +25,7 @@ table.bingo td{padding:0}
   width:var(--cell-size);height:var(--cell-size);
   padding:6px;border:1px solid #cbd5e0;text-align:center;
   font-size:16px;border-radius:4px;background:#fff;
-  transition:background .18s,color .18s,transform .08s,border .12s;
+  transition:background .18s,color .18s,transform .08s,border .12s,box-shadow .12s;
   box-sizing:border-box;
 }
 .cell-input:focus{outline:2px solid #90cdf4;transform:scale(1.02)}
@@ -45,14 +46,19 @@ table.bingo td{padding:0}
 /* 本次命中（目前最新一次的命中）會加上紅邊框 */
 .cell-input.marked.current{
   border: 2px solid var(--red) !important;
-  /* 讓紅邊不會改變格子大小 */
   box-sizing:border-box;
+}
+
+/* 若整行/列/斜線完成，為該格加上綠框（內側顯示綠色邊框） */
+.cell-input.bingo-line{
+  box-shadow: inset 0 0 0 3px rgba(46,204,113,0.95);
 }
 
 /* 小回饋與說明 */
 .play{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .play input[type="text"]{padding:8px;border-radius:6px;border:1px solid #cbd5e0}
-.feedback{margin-top:8px;color:#2d3748}
+.feedback{margin-top:8px;color:#2d3748;width:100%}
+.lines-count{margin-top:6px;color:#22543d;font-weight:600}
 .notes p{font-size:13px;color:#4a5568;margin-top:16px}
 @media (max-width:600px){
   :root{--cell-size:44px}

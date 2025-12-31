@@ -1,19 +1,30 @@
-// 簡單的數字 Bingo 實作（含「本次命中紅邊框」與 Undo 功能）
+// script.js：整合先前 Bingo 邏輯，並加入「拍照/上傳自動識別填入」功能（使用 Tesseract.js）
+// 注意：請確保網路可載入 Tesseract CDN，或自行換成本地檔案。
+// 主要流程：使用者上傳/拍照 → 將照片等分為 n×n → 對每個 cell crop 做前處理 → OCR（限制數字）→ 填回 input。
+
 const sizeInput = document.getElementById('sizeInput');
 const createBtn = document.getElementById('createBtn');
 const lockBtn = document.getElementById('lockBtn');
 const resetBtn = document.getElementById('resetBtn');
 const boardSection = document.getElementById('boardSection');
 
+const imageInput = document.getElementById('imageInput');
+const procCanvas = document.getElementById('procCanvas');
+
 const guessInput = document.getElementById('guessInput');
 const checkBtn = document.getElementById('checkBtn');
 const clearMarksBtn = document.getElementById('clearMarksBtn');
 const undoBtn = document.getElementById('undoBtn');
 const feedback = document.getElementById('feedback');
+const linesCountEl = document.getElementById('linesCount');
 
 let currentSize = 0;
-// 歷史堆疊：每個項目是 array of "r-c" keys，代表當時被標記的格子
 const historyStack = [];
+
+// ---------- 原有的建表、鎖定、檢查、Undo、clear 等程式略（保留與之前版本相同） ----------
+// 為了簡潔，我保留核心函式（buildBoard、normalizeNumber、getMarkedKeys、applyMarkedKeys、updateBingoLines、updateLinesInfo、checkGuess 等）
+// 並在後面加入 OCR 相關的程式碼。
+// （實際使用時請把之前完整的 Bingo 邏輯與此合併；下面是已整合的實作。）
 
 createBtn.addEventListener('click', () => {
   const n = parseInt(sizeInput.value, 10);
@@ -30,10 +41,10 @@ createBtn.addEventListener('click', () => {
   undoBtn.disabled = true;
   historyStack.length = 0;
   feedback.textContent = '';
+  updateLinesInfo(0);
 });
 
 lockBtn.addEventListener('click', () => {
-  // 確認所有格子都有填值
   const inputs = boardSection.querySelectorAll('input.cell-input');
   for (const inp of inputs) {
     if (inp.value.trim() === '') {
@@ -41,11 +52,9 @@ lockBtn.addEventListener('click', () => {
       return;
     }
   }
-  // 設為唯讀
   inputs.forEach(inp => {
     inp.readOnly = true;
     inp.classList.add('locked');
-    // 為方便搜尋，把值標準化儲在 dataset
     inp.dataset.number = inp.value.trim();
   });
 
@@ -56,11 +65,11 @@ lockBtn.addEventListener('click', () => {
   checkBtn.disabled = false;
   clearMarksBtn.disabled = false;
 
-  // 清空歷史（從鎖定開始）
   historyStack.length = 0;
   undoBtn.disabled = true;
 
   feedback.textContent = '盤面已鎖定，可開始輸入數字進行檢查。';
+  updateLinesInfo(0);
 });
 
 resetBtn.addEventListener('click', () => {
@@ -77,6 +86,7 @@ resetBtn.addEventListener('click', () => {
   feedback.textContent = '';
   guessInput.value = '';
   historyStack.length = 0;
+  updateLinesInfo(0);
 });
 
 checkBtn.addEventListener('click', checkGuess);
@@ -90,11 +100,16 @@ clearMarksBtn.addEventListener('click', () => {
     feedback.textContent = '目前沒有任何標記。';
     return;
   }
-  // 儲存歷史以便 Undo
+  if (!confirm('是否確認要清除所有標記？')) {
+    feedback.textContent = '已取消清除標記。';
+    return;
+  }
   historyStack.push(getMarkedKeys());
   undoBtn.disabled = false;
 
-  currentlyMarked.forEach(el => el.classList.remove('marked','current'));
+  currentlyMarked.forEach(el => el.classList.remove('marked','current','bingo-line'));
+  const completedAfter = updateBingoLines();
+  updateLinesInfo(completedAfter);
   feedback.textContent = '已清除所有標記。';
 });
 
@@ -105,26 +120,19 @@ undoBtn.addEventListener('click', () => {
     return;
   }
   const prev = historyStack.pop() || [];
-  applyMarkedKeys(prev, false); // 回復到上一個狀態（回復的狀態視為先前的標記，不是本次命中）
+  applyMarkedKeys(prev, false);
   undoBtn.disabled = historyStack.length === 0;
   feedback.textContent = '已回復到上一步的標記狀態。';
 });
 
-/** 取得目前被標記的格子 keys */
 function getMarkedKeys() {
   const marked = boardSection.querySelectorAll('input.cell-input.marked');
   return Array.from(marked).map(el => `${el.dataset.row}-${el.dataset.col}`);
 }
 
-/** 根據 keys 設定標記（先清空再標示）
- *  setCurrent 若為 true，會同時把這些格子標為 current（紅邊），否則只有綠底（無紅邊）
- */
 function applyMarkedKeys(keys, setCurrent = false) {
-  // 清空所有標記類別
   const allInputs = boardSection.querySelectorAll('input.cell-input');
-  allInputs.forEach(el => el.classList.remove('marked','current'));
-
-  // 再標示
+  allInputs.forEach(el => el.classList.remove('marked','current','bingo-line'));
   keys.forEach(k => {
     const [r, c] = k.split('-');
     const el = boardSection.querySelector(`input.cell-input[data-row="${r}"][data-col="${c}"]`);
@@ -133,9 +141,11 @@ function applyMarkedKeys(keys, setCurrent = false) {
       if (setCurrent) el.classList.add('current');
     }
   });
+  const completedCount = updateBingoLines();
+  updateLinesInfo(completedCount);
+  return completedCount;
 }
 
-/** 檢查猜的數字，找出盤面內相符的格子並標記 */
 function checkGuess() {
   const q = guessInput.value.trim();
   if (!q) {
@@ -146,7 +156,6 @@ function checkGuess() {
     feedback.textContent = '尚未建立盤面。';
     return;
   }
-  // 找出所有 locked 格子的 dataset.number 與輸入比對（精確比對）
   const inputs = boardSection.querySelectorAll('input.cell-input.locked');
   const matchedKeys = [];
   inputs.forEach(inp => {
@@ -160,15 +169,12 @@ function checkGuess() {
     return;
   }
 
-  // 在變更之前，儲存當前標記狀態（用於 Undo）
   historyStack.push(getMarkedKeys());
   undoBtn.disabled = false;
 
-  // 現有的 current（上次的本次命中）轉為普通 marked（移除紅邊）
   const prevCurrent = boardSection.querySelectorAll('.cell-input.current');
   prevCurrent.forEach(el => el.classList.remove('current'));
 
-  // 新的 matched keys 標示為 marked + current（綠底白字 + 紅邊）
   matchedKeys.forEach(k => {
     const [r, c] = k.split('-');
     const el = boardSection.querySelector(`input.cell-input[data-row="${r}"][data-col="${c}"]`);
@@ -177,27 +183,97 @@ function checkGuess() {
     }
   });
 
+  const completedCount = updateBingoLines();
+  updateLinesInfo(completedCount);
+
   feedback.textContent = `找到 ${matchedKeys.length} 個符合的格子，已標記為綠底白字（本次命中以紅邊顯示）。`;
 }
 
-/** 簡單數字標準化：去除前後空白、去掉前導零（保留 0 本身） */
+function updateBingoLines() {
+  const allInputs = boardSection.querySelectorAll('input.cell-input');
+  allInputs.forEach(el => el.classList.remove('bingo-line'));
+  if (!currentSize) return 0;
+
+  const markedSet = new Set(getMarkedKeys());
+  const n = currentSize;
+  const completedSet = new Set();
+
+  for (let r = 0; r < n; r++) {
+    let ok = true;
+    for (let c = 0; c < n; c++) {
+      if (!markedSet.has(`${r}-${c}`)) { ok = false; break; }
+    }
+    if (ok) completedSet.add(`row-${r}`);
+  }
+
+  for (let c = 0; c < n; c++) {
+    let ok = true;
+    for (let r = 0; r < n; r++) {
+      if (!markedSet.has(`${r}-${c}`)) { ok = false; break; }
+    }
+    if (ok) completedSet.add(`col-${c}`);
+  }
+
+  let okMain = true;
+  for (let i = 0; i < n; i++) {
+    if (!markedSet.has(`${i}-${i}`)) { okMain = false; break; }
+  }
+  if (okMain) completedSet.add('diag-main');
+
+  let okAnti = true;
+  for (let i = 0; i < n; i++) {
+    const r = i, c = n - 1 - i;
+    if (!markedSet.has(`${r}-${c}`)) { okAnti = false; break; }
+  }
+  if (okAnti) completedSet.add('diag-anti');
+
+  completedSet.forEach(key => {
+    if (key.startsWith('row-')) {
+      const idx = parseInt(key.split('-')[1], 10);
+      for (let c = 0; c < n; c++) {
+        const el = boardSection.querySelector(`input.cell-input[data-row="${idx}"][data-col="${c}"]`);
+        if (el) el.classList.add('bingo-line');
+      }
+    } else if (key.startsWith('col-')) {
+      const idx = parseInt(key.split('-')[1], 10);
+      for (let r = 0; r < n; r++) {
+        const el = boardSection.querySelector(`input.cell-input[data-row="${r}"][data-col="${idx}"]`);
+        if (el) el.classList.add('bingo-line');
+      }
+    } else if (key === 'diag-main') {
+      for (let i = 0; i < n; i++) {
+        const el = boardSection.querySelector(`input.cell-input[data-row="${i}"][data-col="${i}"]`);
+        if (el) el.classList.add('bingo-line');
+      }
+    } else if (key === 'diag-anti') {
+      for (let i = 0; i < n; i++) {
+        const r = i, c = n - 1 - i;
+        const el = boardSection.querySelector(`input.cell-input[data-row="${r}"][data-col="${c}"]`);
+        if (el) el.classList.add('bingo-line');
+      }
+    }
+  });
+
+  return completedSet.size;
+}
+
+function updateLinesInfo(count) {
+  linesCountEl.textContent = `已達成行數：${count}`;
+}
+
 function normalizeNumber(s) {
   if (s === undefined || s === null) return '';
   s = String(s).trim();
-  // 如果是純數字，移除前導零
   const m = s.match(/^[-+]?\d+$/);
   if (m) {
-    // 轉數字再回字串（保留符號）
     const num = Number(s);
     return String(num);
   }
-  // 否則回傳原始文字（trim）
   return s;
 }
 
-/** 建立表格 */
 function buildBoard(n) {
-  boardSection.innerHTML = ''; // 清空
+  boardSection.innerHTML = '';
   const table = document.createElement('table');
   table.className = 'bingo';
   for (let r = 0; r < n; r++) {
@@ -212,9 +288,7 @@ function buildBoard(n) {
       input.autocomplete = 'off';
       input.dataset.row = r;
       input.dataset.col = c;
-      // 允許快速輸入時自動選取方便覆寫
       input.addEventListener('focus', e => e.target.select());
-      // 防止輸入太長
       input.addEventListener('input', e => {
         const v = e.target.value;
         if (v.length > 6) e.target.value = v.slice(0,6);
@@ -226,3 +300,158 @@ function buildBoard(n) {
   }
   boardSection.appendChild(table);
 }
+
+// ---------- OCR 功能：拍照/上傳並自動填入 ----------
+// 使用 Tesseract.js createWorker
+let tesseractWorker = null;
+let tesseractReady = false;
+
+async function ensureTesseract() {
+  if (tesseractReady) return;
+  if (!('Tesseract' in window)) {
+    throw new Error('Tesseract.js 未載入');
+  }
+  tesseractWorker = Tesseract.createWorker({
+    logger: m => { /* 可以印 progress: console.log(m) */ }
+  });
+  await tesseractWorker.load();
+  await tesseractWorker.loadLanguage('eng');
+  await tesseractWorker.initialize('eng');
+  // 只允許數字
+  await tesseractWorker.setParameters({
+    tessedit_char_whitelist: '0123456789',
+    user_defined_dpi: '150'
+  });
+  tesseractReady = true;
+}
+
+// 點選上傳檔案
+imageInput.addEventListener('change', async (e) => {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+  if (!currentSize) {
+    alert('請先建立盤面（設定 n×n）再上傳圖片以自動填入。');
+    imageInput.value = '';
+    return;
+  }
+  feedback.textContent = '開始處理影像並識別，請稍候……';
+  try {
+    await ensureTesseract();
+    const img = await loadImageFromFile(file);
+    // 把照片等比縮放到 canvas（不超過 1600px）
+    const maxW = 1600;
+    const scale = Math.min(1, maxW / Math.max(img.width, img.height));
+    const w = Math.round(img.width * scale);
+    const h = Math.round(img.height * scale);
+    procCanvas.width = w;
+    procCanvas.height = h;
+    const ctx = procCanvas.getContext('2d');
+    ctx.drawImage(img, 0, 0, w, h);
+
+    // 簡單做：直接把畫面等分成 n x n，對每個 cell crop 並 OCR
+    const results = [];
+    for (let r = 0; r < currentSize; r++) {
+      for (let c = 0; c < currentSize; c++) {
+        const cellRect = computeCellRect(w, h, currentSize, r, c);
+        // 擴一點 margin，避免裁切邊界漏字
+        const pad = Math.ceil(Math.min(cellRect.w, cellRect.h) * 0.12);
+        const sx = Math.max(0, cellRect.x - pad);
+        const sy = Math.max(0, cellRect.y - pad);
+        const sw = Math.min(w - sx, cellRect.w + pad * 2);
+        const sh = Math.min(h - sy, cellRect.h + pad * 2);
+        const cropCanvas = document.createElement('canvas');
+        cropCanvas.width = sw;
+        cropCanvas.height = sh;
+        const cropCtx = cropCanvas.getContext('2d');
+        cropCtx.drawImage(procCanvas, sx, sy, sw, sh, 0, 0, sw, sh);
+
+        // 前處理：灰階 + 簡單二值化（自適應閾值簡化為固定）
+        const imgData = cropCtx.getImageData(0,0,sw,sh);
+        const data = imgData.data;
+        // grayscale
+        for (let i = 0; i < data.length; i += 4) {
+          const gray = (data[i]*0.3 + data[i+1]*0.59 + data[i+2]*0.11);
+          data[i] = data[i+1] = data[i+2] = gray;
+        }
+        // naive threshold
+        let sum = 0;
+        for (let i = 0; i < data.length; i += 4) sum += data[i];
+        const avg = sum / (data.length/4);
+        const threshold = Math.max(100, avg * 0.9);
+        for (let i = 0; i < data.length; i += 4) {
+          const v = data[i] > threshold ? 255 : 0;
+          data[i] = data[i+1] = data[i+2] = v;
+        }
+        cropCtx.putImageData(imgData, 0, 0);
+
+        // OCR 該 crop（把 canvas 直接傳給 Tesseract）
+        const { data: ocrData } = await tesseractWorker.recognize(cropCanvas);
+        let text = (ocrData && ocrData.text) ? ocrData.text.replace(/\s+/g, '') : '';
+        // 清理，只取數字
+        text = (text.match(/[0-9]+/) || [''])[0];
+        results.push({ r, c, text });
+      }
+    }
+
+    // 把辨識結果填回表格（如果辨識為空就保留原值）
+    let filled = 0;
+    results.forEach(item => {
+      const el = boardSection.querySelector(`input.cell-input[data-row="${item.r}"][data-col="${item.c}"]`);
+      if (el) {
+        if (item.text) {
+          el.value = item.text;
+          el.dataset.number = item.text;
+          filled++;
+        }
+      }
+    });
+
+    feedback.textContent = `已完成 OCR，自動填入 ${filled} 個格子（若某些格子辨識不到會保留原值）。請檢查並視需要微調，然後按「鎖定為唯讀」。`;
+    // 啟用鎖定按鈕（若尚未鎖定）
+    lockBtn.disabled = false;
+    // 啟用清除按鈕（讓使用者可以清除/undo）
+    clearMarksBtn.disabled = false;
+  } catch (err) {
+    console.error(err);
+    feedback.textContent = 'OCR 發生錯誤：' + (err.message || err);
+  } finally {
+    imageInput.value = '';
+  }
+});
+
+// 幫助函式：從 File 讀成 Image
+function loadImageFromFile(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve(img);
+    };
+    img.onerror = (e) => {
+      URL.revokeObjectURL(url);
+      reject(new Error('無法載入圖片'));
+    };
+    img.src = url;
+  });
+}
+
+// 計算某個 cell 在畫布上的座標與大小（等分方式）
+function computeCellRect(canvasW, canvasH, n, r, c) {
+  // 以寬或高為主？我們以寬或高的等分都行（直接在兩方向等分）
+  const cellW = canvasW / n;
+  const cellH = canvasH / n;
+  const x = Math.round(c * cellW);
+  const y = Math.round(r * cellH);
+  return { x, y, w: Math.round(cellW), h: Math.round(cellH) };
+}
+
+// 在離開/關閉時釋放 worker
+window.addEventListener('beforeunload', async () => {
+  try {
+    if (tesseractWorker) {
+      await tesseractWorker.terminate();
+      tesseractWorker = null;
+    }
+  } catch (e) { /* ignore */ }
+});
